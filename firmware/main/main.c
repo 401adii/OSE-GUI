@@ -57,14 +57,12 @@ static esp_err_t dht11_read(gpio_num_t pin, int *humidity, int *temperature)
     if(wait_for_level(pin, 0, 200) < 0)
     {
         portEXIT_CRITICAL(&mux);
-        ESP_LOGE(MAIN_TAG, "timeout at 1st check");
         return ESP_ERR_TIMEOUT;
     }
 
     if(wait_for_level(pin, 1, 100) < 0)
     {
         portEXIT_CRITICAL(&mux);
-        ESP_LOGE(MAIN_TAG, "timeout at 2nd check");
         return ESP_ERR_TIMEOUT;
     }
 
@@ -76,7 +74,6 @@ static esp_err_t dht11_read(gpio_num_t pin, int *humidity, int *temperature)
     if(wait_for_level(pin, 0, 100) < 0)
     {
         portEXIT_CRITICAL(&mux);
-        ESP_LOGE(MAIN_TAG, "timeout at 3rd check");
         return ESP_ERR_TIMEOUT;
     }
     /*
@@ -89,7 +86,6 @@ static esp_err_t dht11_read(gpio_num_t pin, int *humidity, int *temperature)
         if(wait_for_level(pin, 1, 100) < 0)
         {
             portEXIT_CRITICAL(&mux);
-            ESP_LOGE(MAIN_TAG, "timeout at 5th check");
             return ESP_ERR_TIMEOUT;
         }
         
@@ -98,7 +94,6 @@ static esp_err_t dht11_read(gpio_num_t pin, int *humidity, int *temperature)
         if(high_duration < 0)
         {
             portEXIT_CRITICAL(&mux);
-            ESP_LOGE(MAIN_TAG, "timeout at 6th check");
             return ESP_ERR_TIMEOUT;
         }
 
@@ -136,20 +131,8 @@ void app_main(void)
 {
     int humidity = 0;
     int temperature = 0;
-
-    vTaskDelay(pdMS_TO_TICKS(2000));
+    
     while(1)
     {
-        esp_err_t ret = dht11_read(DHT_PIN, &humidity, &temperature);
-        if(ret == ESP_OK)
-        {
-            ESP_LOGI(MAIN_TAG, "Temperature: %d deg. C, Humidity: %d %%", temperature, humidity);
-        }
-        else
-        {
-            ESP_LOGW(MAIN_TAG, "Sensor read failed: %s", esp_err_to_name(ret));
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
