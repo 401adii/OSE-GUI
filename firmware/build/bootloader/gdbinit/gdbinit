@@ -1,0 +1,2 @@
+source /home/adrian/ose/firmware/build/bootloader/gdbinit/symbols
+source /home/adrian/ose/firmware/build/bootloader/gdbinit/connect
