@@ -137,7 +137,7 @@ static esp_err_t dht11_read(gpio_num_t pin, int *humidity, int *temperature)
 }
 
 /*
-* UART Command parsing and dispatching
+* Command parsing and dispatching
 */
 static void cmd_dispatcher(uint8_t *data, uint8_t data_size)
 {
@@ -160,8 +160,18 @@ static void cmd_dispatcher(uint8_t *data, uint8_t data_size)
     }
     else if(strncmp("READANDGET", (const char *)data, (size_t)data_size) == 0)
     {
-        dht11_read(DHT_PIN, &humidity, &temperature);
-        //transmit back over uart.
+        char tx_buf[UART_BUFFER_SIZE];
+        int len;
+        esp_err_t ret = dht11_read(DHT_PIN, &humidity, &temperature);
+        if(ret == ESP_OK)
+        {
+            len = snprintf(tx_buf, sizeof(tx_buf), "%d\n", temperature);
+        }
+        else
+        {
+            len = snprintf(tx_buf, sizeof(tx_buf), "ERR\n");
+        }
+        uart_write_bytes(UART_NUM_0, tx_buf, len);
     }
 }
 
