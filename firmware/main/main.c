@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "driver/gpio.h"
+#include "driver/uart.h"
 #include "esp_timer.h"
 #include "esp_log.h"
 
@@ -13,6 +15,15 @@
 
 #define DHT_DATA_SIZE_B   5U
 
+#define UART_BAUDRATE 115200
+#define UART_BUFFER_SIZE 256
+#define UART_QUEUE_SIZE 10
+
+static QueueHandle_t g_uart_queue;
+
+/* 
+ * Helper function for GPIO pin polling.
+ */
 static int wait_for_level(gpio_num_t pin, int level, uint32_t timeout_us)
 {
     int64_t start = esp_timer_get_time();
@@ -25,7 +36,10 @@ static int wait_for_level(gpio_num_t pin, int level, uint32_t timeout_us)
     }
     return (int)(esp_timer_get_time() - start);
 }
-
+/*
+ * Asks and reads values of humidity and temperature
+ * Returns ESP_OK/ESP_ERR_TIMEOUT/ESP_ERR_INVALID_CRC
+ */
 static esp_err_t dht11_read(gpio_num_t pin, int *humidity, int *temperature)
 {
     uint8_t data[DHT_DATA_SIZE_B] = {0};
@@ -122,17 +136,75 @@ static esp_err_t dht11_read(gpio_num_t pin, int *humidity, int *temperature)
     return ESP_OK;
 }
 
-static void led_gpio_init(void)
+/*
+* UART Command parsing and dispatching
+*/
+static void cmd_dispatcher(uint8_t *data, uint8_t data_size)
 {
-
+    int param = -1;
+    int temperature = 0xFF; /* DHT11 Line pulled high if not working */
+    int humidity = 0xFF;
+    if(sscanf((const char *)data, "LEDG %d", &param) == 1)
+    {
+        if(param == 1 || param == 0)
+        {
+            gpio_set_level(GREEN_PIN, param);
+        }
+    }
+    else if(sscanf((const char *)data, "LEDR %d", &param) == 1)
+    {
+        if(param == 1 || param == 0)
+        {
+            gpio_set_level(RED_PIN, param);
+        }
+    }
+    else if(strncmp("READANDGET", (const char *)data, (size_t)data_size) == 0)
+    {
+        dht11_read(DHT_PIN, &humidity, &temperature);
+        //transmit back over uart.
+    }
 }
 
 void app_main(void)
 {
-    int humidity = 0;
-    int temperature = 0;
+    gpio_config_t gpio_conf = {
+        .mode = GPIO_MODE_OUTPUT,
+        .pin_bit_mask = (1ULL << RED_PIN) | (1ULL << GREEN_PIN),
+        .intr_type = GPIO_INTR_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+    };
     
+    gpio_config(&gpio_conf);
+
+    uart_config_t uart_conf = {
+        .baud_rate = UART_BAUDRATE,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .source_clk = UART_SCLK_DEFAULT,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    };
+    
+    uart_param_config(UART_NUM_0, &uart_conf);
+    uart_driver_install(UART_NUM_0, UART_BUFFER_SIZE, UART_BUFFER_SIZE, UART_QUEUE_SIZE, &g_uart_queue, 0);
+
+    uart_event_t event = {0};
+    uint8_t data[UART_BUFFER_SIZE];
+
     while(1)
     {
+        if(xQueueReceive(g_uart_queue, &event, pdMS_TO_TICKS(1000)))
+        {
+            if(event.type == UART_DATA)
+            {
+                uint16_t bytes_read = uart_read_bytes(UART_NUM_0, data, event.size, pdMS_TO_TICKS(1000));
+                if(bytes_read > 0)
+                {
+                    data[bytes_read] = '\0';
+                    cmd_dispatcher(data, bytes_read);
+                }
+            }
+        }
     }
 }
