@@ -1,15 +1,13 @@
 from src.SerialComm import SerialComm
+from src.CmdInterface import CmdInterface
+from src.Ui import Ui
 
-def handle_data(message: str) -> None:
-    print(f"[RX]: {message}")
 
 def main():
-    serial_port = SerialComm(port="/dev/ttyUSB0", on_data=handle_data)
-    serial_port.write("READANDGET")
-
-    while True:
-        pass
-
+    serial = SerialComm(port="/dev/ttyUSB0")
+    cmd_interface = CmdInterface(serial)
+    ui = Ui(cmd_interface)
+    ui.run()
 
 if __name__ == "__main__":
     main()
