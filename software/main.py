@@ -1,5 +1,15 @@
-import serial
+from src.SerialComm import SerialComm
 
-ser = serial.Serial("/dev/ttyUSB0", 115200, timeout=1.0)
-data = "LEDR 0".encode("utf-8")
-ser.write(data)
+def handle_data(message: str) -> None:
+    print(f"[RX]: {message}")
+
+def main():
+    serial_port = SerialComm(port="/dev/ttyUSB0", on_data=handle_data)
+    serial_port.write("READANDGET")
+
+    while True:
+        pass
+
+
+if __name__ == "__main__":
+    main()
