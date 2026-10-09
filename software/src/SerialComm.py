@@ -1,18 +1,17 @@
 import threading
-from typing import Callable, Optional
+import queue
+import time
 import serial
 
 class SerialComm:
     def __init__(
             self,
             port: str,
-            on_data: Callable[[str], None],
             baudrate: int = 115200,
             timeout: float = 1.0
     ):
         self.ser = serial.Serial(port=port, baudrate=baudrate, timeout=timeout)
-
-        self._on_data: Callable[[str], None] = on_data
+        self.rx_queue: queue.Queue[str] = queue.Queue()
         self._stop_event = threading.Event()
         self._write_lock = threading.Lock()
 
@@ -26,7 +25,7 @@ class SerialComm:
                     raw_data = self.ser.readline()
                     if raw_data:
                         line = raw_data.decode("utf-8", errors="replace").strip("\n")
-                        self._on_data(line)
+                        self.rx_queue.put(line)
             except (serial.SerialException, TypeError):
                 break
 
@@ -34,3 +33,9 @@ class SerialComm:
         encoded = data.encode("utf-8")
         with self._write_lock:
             self.ser.write(encoded)
+
+    def read(self, block: bool = True, timeout: float | None = None) -> str | None:
+        try:
+            return self.rx_queue.get(block=block, timeout=timeout)
+        except queue.Empty:
+            return None
