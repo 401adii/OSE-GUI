@@ -10,7 +10,6 @@ def main():
     if len(sys.argv) > 1:
         port = sys.argv[1]
     else:
-        print("usage: python3 main.py <serial-port>")
         sys.exit(1)
 
     app = QApplication([])
