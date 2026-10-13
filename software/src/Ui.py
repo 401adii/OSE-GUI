@@ -6,7 +6,9 @@ from PySide6.QtWidgets import (
     QWidget,
     QDoubleSpinBox
 )
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtGui import QPainter
+from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis
 from src.CmdInterface import CmdInterface
 
 TEMPERATURE_POLLING_MS = 1000
@@ -16,32 +18,30 @@ class Ui(QMainWindow):
         super().__init__()
         
         self._cmd = cmd
-
         self.setWindowTitle("Temperature Alert System")
 
-        # Private state variables
+        # State variables
         self._temperature = -1
         self._red_state = False
         self._green_state = False
         self._lower_threshold = 23.0
         self._upper_threshold = 30.0
+        self._time_counter = 0
 
-        # Labels
+        # UI Widgets
         self.temperature_label = QLabel(f"Temperature: {self._temperature}°C")
+        self.temperature_label.setStyleSheet("font-size: 14pt; font-weight: bold;")
 
-        # Spinboxes
         self._lower_spinbox = QDoubleSpinBox()
         self._lower_spinbox.setRange(-50.0, 150.0)
         self._lower_spinbox.setValue(self._lower_threshold)
         self._lower_spinbox.setSingleStep(0.5)
+        self._lower_spinbox.setMaximum(self._upper_threshold - 0.5)
 
         self._upper_spinbox = QDoubleSpinBox()
         self._upper_spinbox.setRange(-50.0, 150.0)
         self._upper_spinbox.setValue(self._upper_threshold)
         self._upper_spinbox.setSingleStep(0.5)
-
-        # Enforce initial boundaries so they don't overlap on startup
-        self._lower_spinbox.setMaximum(self._upper_threshold - 0.5)
         self._upper_spinbox.setMinimum(self._lower_threshold + 0.5)
 
         # Signals
@@ -57,29 +57,73 @@ class Ui(QMainWindow):
         upper_layout.addWidget(QLabel("Upper threshold (°C):"))
         upper_layout.addWidget(self._upper_spinbox)
 
-        layout = QVBoxLayout()
-        layout.addWidget(self.temperature_label)
-        layout.addLayout(lower_layout)
-        layout.addLayout(upper_layout)
+        right_layout = QVBoxLayout()
+        right_layout.addWidget(self.temperature_label)
+        right_layout.addSpacing(15)
+        right_layout.addLayout(lower_layout)
+        right_layout.addLayout(upper_layout)
+        right_layout.addStretch()
+
+        # Chart Setup
+        self._series = QLineSeries()
+        self._chart = QChart()
+        self._chart.addSeries(self._series)
+        self._chart.setTitle("Temperature over Time")
+        self._chart.legend().hide()
+
+        self._axis_x = QValueAxis()
+        self._axis_x.setTitleText("Time (s)")
+        self._axis_x.setRange(0, 60)
+        self._chart.addAxis(self._axis_x, Qt.AlignBottom)
+        self._series.attachAxis(self._axis_x)
+
+        self._axis_y = QValueAxis()
+        self._axis_y.setTitleText("Temperature (°C)")
+        self._axis_y.setRange(-10, 50)
+        self._chart.addAxis(self._axis_y, Qt.AlignLeft)
+        self._series.attachAxis(self._axis_y)
+
+        self._chart_view = QChartView(self._chart)
+        self._chart_view.setRenderHint(QPainter.Antialiasing)
+        self._chart_view.setMinimumSize(500, 350)
+
+        # Main Layout
+        main_layout = QHBoxLayout()
+        main_layout.addWidget(self._chart_view, stretch=3)
+        main_layout.addLayout(right_layout, stretch=1)
 
         container = QWidget()
-        container.setLayout(layout)
+        container.setLayout(main_layout)
         self.setCentralWidget(container)
         
-        # Init calls
-        self._cmd.read_temperature()
-        self._cmd.toggle_red_led(self._red_state)
-        self._cmd.toggle_green_led(self._green_state)
+        try:
+            self._cmd.toggle_red_led(False)
+            self._cmd.toggle_green_led(False)
+        except Exception:
+            pass
 
-        # Timer for repeated temperature polling
+        # Timer setup
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._read_temperature)
         self._timer.start(TEMPERATURE_POLLING_MS)
     
     def _read_temperature(self):
-        self._temperature = self._cmd.read_temperature()
-        self.temperature_label.setText(f"Temperature: {self._temperature}°C")
-        self._evaluate_thresholds()
+        try:
+            temp = self._cmd.read_temperature()
+            if temp is not None:
+                self._temperature = temp
+                self.temperature_label.setText(f"Temperature: {self._temperature}°C")
+                self._evaluate_thresholds()
+                
+                if self._temperature != -1:
+                    self._series.append(self._time_counter, self._temperature)
+                    if self._time_counter > 60:
+                        self._axis_x.setRange(self._time_counter - 60, self._time_counter)
+                    else:
+                        self._axis_x.setRange(0, max(60, self._time_counter))
+                    self._time_counter += 1
+        except Exception as e:
+            print(f"Warning: Failed to read temperature ({e})")
 
     def _update_lower_threshold(self, value):
         self._lower_threshold = value
@@ -102,7 +146,6 @@ class Ui(QMainWindow):
             if self._green_state:
                 self._green_state = False
                 self._cmd.toggle_green_led(False)
-        
         elif self._temperature >= self._upper_threshold:
             if not self._green_state:
                 self._green_state = True
@@ -110,7 +153,6 @@ class Ui(QMainWindow):
             if self._red_state:
                 self._red_state = False
                 self._cmd.toggle_red_led(False)
-        
         else:
             if self._red_state:
                 self._red_state = False
@@ -123,10 +165,10 @@ class Ui(QMainWindow):
         try:
             self._cmd.toggle_red_led(False)
             self._cmd.toggle_green_led(False)
-        except Exception as e:
-            print(f"Error turning off LEDs on exit: {e}")
-
+        except Exception:
+            pass
+            
         if hasattr(self, '_timer'):
             self._timer.stop()
-
+            
         event.accept()
