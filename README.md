@@ -1,4 +1,3 @@
-# README
 Repozytorium zawiera kod źródłowy projektu powstałego w ramach przedmiotu "Oprogramowanie Systemów Elektronicznych - Projekt" prowadzonego na kierunku Elektronika i Telekomunikacja (2 stopień) na wydziale ETI Politechniki Gdańskiej.
 # Uruchamianie
 ## Firmware
