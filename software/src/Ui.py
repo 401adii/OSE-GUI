@@ -118,3 +118,15 @@ class Ui(QMainWindow):
             if self._green_state:
                 self._green_state = False
                 self._cmd.toggle_green_led(False)
+
+    def closeEvent(self, event):
+        try:
+            self._cmd.toggle_red_led(False)
+            self._cmd.toggle_green_led(False)
+        except Exception as e:
+            print(f"Error turning off LEDs on exit: {e}")
+
+        if hasattr(self, '_timer'):
+            self._timer.stop()
+
+        event.accept()
