@@ -12,4 +12,4 @@ class CmdInterface:
 
     def read_temperature(self) -> int:
         self.serial.write("READANDGET")
-        return self.serial.read()
+        return int(self.serial.read())

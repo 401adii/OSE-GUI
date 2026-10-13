@@ -169,7 +169,7 @@ static void cmd_dispatcher(uint8_t *data, uint8_t data_size)
         }
         else
         {
-            len = snprintf(tx_buf, sizeof(tx_buf), "ERR\n");
+            len = snprintf(tx_buf, sizeof(tx_buf), "%d\n", -1);
         }
         uart_write_bytes(UART_NUM_0, tx_buf, len);
     }

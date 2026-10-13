@@ -1,9 +1,9 @@
 from PySide6.QtWidgets import (
     QMainWindow,
-    QPushButton,
     QVBoxLayout,
     QLabel,
-    QWidget
+    QWidget,
+    QDoubleSpinBox
     )
 from PySide6.QtCore import QTimer
 from src.CmdInterface import CmdInterface
@@ -25,23 +25,14 @@ class Ui(QMainWindow):
         self._temperature = -1
         self._red_state = False
         self._green_state = False
-        
-        # Buttons
-        self.red_led_button = QPushButton("Red Led")
-        self.green_led_button = QPushButton("Green Led")
+        self._lower_threshold = 23
+        self._upper_threshold = 30
 
         # Labels
         self.temperature_label = QLabel(f"Temperature: {self._temperature}°C")
 
-        
-        # Signals
-        self.red_led_button.clicked.connect(self._toggle_red)        
-        self.green_led_button.clicked.connect(self._toggle_green)
-
         # Layout
         layout = QVBoxLayout()
-        layout.addWidget(self.red_led_button)
-        layout.addWidget(self.green_led_button)
         layout.addWidget(self.temperature_label)
 
         container = QWidget()
@@ -59,15 +50,36 @@ class Ui(QMainWindow):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._read_temperature)
         self._timer.start(TEMPERATURE_POLLING_MS)
-
-    def _toggle_red(self):
-        self._red_state = not self._red_state
-        self._cmd.toggle_red_led(self._red_state)
-    
-    def _toggle_green(self):
-        self._green_state = not self._green_state
-        self._cmd.toggle_green_led(self._green_state)
     
     def _read_temperature(self):
         self._temperature = self._cmd.read_temperature()
         self.temperature_label.setText(f"Temperature: {self._temperature}°C")
+        self._evaluate_thresholds()
+
+    def _evaluate_thresholds(self):
+        if self._temperature == -1:
+            return
+        
+        if self._temperature <= self._lower_threshold:
+            if not self._red_state:
+                self._red_state = True
+                self._cmd.toggle_red_led(True)
+            if self._green_state:
+                self._green_state = False
+                self._cmd.toggle_green_led(False)
+        
+        elif self._temperature >= self._upper_threshold:
+            if not self._green_state:
+                self._green_state = True
+                self._cmd.toggle_green_led(True)
+            if self._red_state:
+                self._red_state = False
+                self._cmd.toggle_red_led(False)
+        else:
+            self._red_state = False
+            self._cmd.toggle_red_led(False)
+            self._green_state = False
+            self._cmd.toggle_green_led(False)
+
+
+                
