@@ -44,6 +44,14 @@ class Ui(QMainWindow):
         self._upper_spinbox.setSingleStep(0.5)
         self._upper_spinbox.setMinimum(self._lower_threshold + 0.5)
 
+        self._red_led_widget = QLabel()
+        self._red_led_widget.setFixedSize(24, 24)
+
+        self._green_led_widget = QLabel()
+        self._green_led_widget.setFixedSize(24, 24)
+
+        self._update_led_styles()
+
         # Signals
         self._lower_spinbox.valueChanged.connect(self._update_lower_threshold)
         self._upper_spinbox.valueChanged.connect(self._update_upper_threshold)
@@ -57,11 +65,24 @@ class Ui(QMainWindow):
         upper_layout.addWidget(QLabel("Upper threshold (°C):"))
         upper_layout.addWidget(self._upper_spinbox)
 
+        red_led_layout = QHBoxLayout()
+        red_led_layout.addWidget(QLabel("Red LED Alarm:"))
+        red_led_layout.addWidget(self._red_led_widget)
+        red_led_layout.addStretch()
+
+        green_led_layout = QHBoxLayout()
+        green_led_layout.addWidget(QLabel("Green LED Alarm:"))
+        green_led_layout.addWidget(self._green_led_widget)
+        green_led_layout.addStretch()
+
         right_layout = QVBoxLayout()
         right_layout.addWidget(self.temperature_label)
-        right_layout.addSpacing(15)
+        right_layout.addSpacing(10)
         right_layout.addLayout(lower_layout)
         right_layout.addLayout(upper_layout)
+        right_layout.addSpacing(15)
+        right_layout.addLayout(red_led_layout)
+        right_layout.addLayout(green_led_layout)
         right_layout.addStretch()
 
         # Chart Setup
@@ -87,7 +108,7 @@ class Ui(QMainWindow):
         self._chart_view.setRenderHint(QPainter.Antialiasing)
         self._chart_view.setMinimumSize(500, 350)
 
-        # Main Layout
+        # Main Layout (Graph Left, Controls Right)
         main_layout = QHBoxLayout()
         main_layout.addWidget(self._chart_view, stretch=3)
         main_layout.addLayout(right_layout, stretch=1)
@@ -96,6 +117,7 @@ class Ui(QMainWindow):
         container.setLayout(main_layout)
         self.setCentralWidget(container)
         
+        # Init hardware state
         try:
             self._cmd.toggle_red_led(False)
             self._cmd.toggle_green_led(False)
@@ -114,7 +136,7 @@ class Ui(QMainWindow):
                 self._temperature = temp
                 self.temperature_label.setText(f"Temperature: {self._temperature}°C")
                 self._evaluate_thresholds()
-                
+
                 if self._temperature != -1:
                     self._series.append(self._time_counter, self._temperature)
                     if self._time_counter > 60:
@@ -134,6 +156,19 @@ class Ui(QMainWindow):
         self._upper_threshold = value
         self._lower_spinbox.setMaximum(value - 0.5)
         self._evaluate_thresholds()
+
+    def _update_led_styles(self):
+        if self._red_state:
+            red_style = "background-color: #ff3333; border-radius: 12px; border: 2px solid #cc0000;"
+        else:
+            red_style = "background-color: #442222; border-radius: 12px; border: 2px solid #221111;"
+        self._red_led_widget.setStyleSheet(red_style)
+
+        if self._green_state:
+            green_style = "background-color: #33cc33; border-radius: 12px; border: 2px solid #009900;"
+        else:
+            green_style = "background-color: #224422; border-radius: 12px; border: 2px solid #112211;"
+        self._green_led_widget.setStyleSheet(green_style)
 
     def _evaluate_thresholds(self):
         if self._temperature == -1:
@@ -160,6 +195,9 @@ class Ui(QMainWindow):
             if self._green_state:
                 self._green_state = False
                 self._cmd.toggle_green_led(False)
+
+        # Update the visual LED colors on the UI
+        self._update_led_styles()
 
     def closeEvent(self, event):
         try:
